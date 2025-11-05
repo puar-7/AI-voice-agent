@@ -1,3 +1,4 @@
 vocode
 fastapi
 uvicorn
+groq
