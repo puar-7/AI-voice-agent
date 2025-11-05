@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arya AI Voice Agent - Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .logo-text h1 {
+            font-size: 24px;
+            color: #1a202c;
+            margin-bottom: 4px;
+        }
+
+        .logo-text p {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .lang-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .lang-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .lang-btn:hover:not(.active) {
+            background: #f7fafc;
+        }
+
+        .clear-btn {
+            padding: 10px 16px;
+            background: #fed7d7;
+            color: #c53030;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .clear-btn:hover {
+            background: #fc8181;
+            color: white;
+        }
+
+        .quick-tests {
+            background: white;
+            padding: 12px 24px;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .quick-test-btn {
+            padding: 8px 16px;
+            background: #edf2f7;
+            color: #667eea;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .quick-test-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .chat-container {
+            background: white;
+            padding: 24px;
+            height: 500px;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 16px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            position: relative;
+        }
+
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .message-bubble {
+            background: #f7fafc;
+            color: #1a202c;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-text {
+            margin-bottom: 4px;
+            line-height: 1.5;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #f7fafc;
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            max-width: 70%;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        .input-area {
+            background: white;
+            padding: 24px;
+            border-radius: 0 0 16px 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-field:disabled {
+            background: #f7fafc;
+            cursor: not-allowed;
+        }
+
+        .input-btn {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mic-btn {
+            background: #edf2f7;
+            color: #667eea;
+        }
+
+        .mic-btn:hover:not(:disabled) {
+            background: #e2e8f0;
+        }
+
+        .mic-btn.active {
+            background: #fc8181;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.speaking {
+            background: #bee3f8;
+            color: #2c5282;
+            display: block;
+            animation: pulse 2s infinite;
+        }
+
+        .features {
+            margin-top: 24px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 20px;
+            color: white;
+        }
+
+        .features h3 {
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            font-size: 14px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .controls {
+                justify-content: space-between;
+            }
+            
+            .message-bubble {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">🎙️</div>
+                    <div class="logo-text">
+                        <h1>Arya Voice Agent</h1>
+                        <p>AI-Powered Conversational Assistant</p>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="lang-btn active" onclick="setLanguage('en')">English</button>
+                    <button class="lang-btn" onclick="setLanguage('hi')">हिंदी</button>
+                    <button class="clear-btn" onclick="clearChat()">🗑️ Clear</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Test Buttons -->
+        <div class="quick-tests" id="quickTests"></div>
+
+        <!-- Chat Messages -->
+        <div class="chat-container" id="chatContainer"></div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    class="input-field" 
+                    placeholder="Type your message..."
+                    onkeypress="handleKeyPress(event)"
+                />
+                <button class="input-btn mic-btn" id="micBtn" onclick="toggleVoiceInput()">
+                    🎤
+                </button>
+                <button class="input-btn send-btn" onclick="sendMessage()">
+                    Send ➤
+                </button>
+            </div>
+            <div class="status speaking" id="speakingStatus">
+                🔊 Arya is speaking...
+            </div>
+        </div>
+
+        <!-- Features Info -->
+        <div class="features">
+            <h3>✨ Demo Features</h3>
+            <div class="features-grid">
+                <div class="feature-item">🎙️ Real-time voice input</div>
+                <div class="feature-item">🔊 Text-to-speech responses</div>
+                <div class="feature-item">🤖 Groq LLM (Llama 3.1)</div>
+                <div class="feature-item">💬 Conversation memory</div>
+                <div class="feature-item">🌐 Hindi + English</div>
+                <div class="feature-item">🏗️ Construction updates</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = ''; // Same origin - change if needed
+        const SESSION_ID = 'session_' + Date.now();
+        
+        let currentLanguage = 'en';
+        let isListening = false;
+        let isSpeaking = false;
+        let recognition = null;
+        let audioElement = new Audio();
+
+        // Quick test messages
+        const quickTests = {
+            en: [
+                'Hello Arya!',
+                'Tell me about the construction project',
+                'What can you help me with?'
+            ],
+            hi: [
+                'Namaste Arya!',
+                'Construction project ke baare mein batao',
+                'Tumhara naam kya hai?'
+            ]
+        };
+
+        // Initialize
+        window.onload = function() {
+            initSpeechRecognition();
+            addMessage('assistant', getGreeting());
+            updateQuickTests();
+        };
+
+        function getGreeting() {
+            return currentLanguage === 'hi' 
+                ? 'Namaste! Main Arya hoon. Main aapki Hindi ya English mein madad kar sakti hoon. 😊'
+                : 'Hello! I\'m Arya. I can help you in Hindi or English. How can I assist you today? 😊';
+        }
+
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('messageInput').value = transcript;
+                    isListening = false;
+                    updateMicButton();
+                };
+                
+                recognition.onerror = function() {
+                    isListening = false;
+                    updateMicButton();
+                };
+                
+                recognition.onend = function() {
+                    isListening = false;
+                    updateMicButton();
+                };
+            }
+        }
+
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            if (recognition) {
+                recognition.lang = lang === 'hi' ? 'hi-IN' : 'en-IN';
+            }
+            
+            document.getElementById('messageInput').placeholder = 
+                lang === 'hi' ? 'यहाँ टाइप करें...' : 'Type your message...';
+            
+            updateQuickTests();
+        }
+
+        function updateQuickTests() {
+            const container = document.getElementById('quickTests');
+            container.innerHTML = '';
+            quickTests[currentLanguage].forEach(test => {
+                const btn = document.createElement('button');
+                btn.className = 'quick-test-btn';
+                btn.textContent = test;
+                btn.onclick = () => {
+                    document.getElementById('messageInput').value = test;
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                alert('Speech recognition not supported. Please use Chrome or Edge.');
+                return;
+            }
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.lang = currentLanguage === 'hi' ? 'hi-IN' : 'en-IN';
+                recognition.start();
+                isListening = true;
+                updateMicButton();
+            }
+        }
+
+        function updateMicButton() {
+            const btn = document.getElementById('micBtn');
+            if (isListening) {
+                btn.classList.add('active');
+                btn.innerHTML = '⏹️';
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = '🎤';
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message
+            addMessage('user', message);
+            input.value = '';
+            
+            // Show typing indicator
+            showTyping();
+            
+            try {
+                // Call chat API
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        language: currentLanguage,
+                        session_id: SESSION_ID
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+                
+                const data = await response.json();
+                
+                // Remove typing indicator
+                hideTyping();
+                
+                // Add assistant response
+                addMessage('assistant', data.response);
+                
+                // Speak the response
+                await speak(data.response);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                hideTyping();
+                const errorMsg = currentLanguage === 'hi' 
+                    ? 'Maaf kijiye, kuch problem aa gayi. Kripya dubara try karein.'
+                    : 'Sorry, I encountered an error. Please try again.';
+                addMessage('assistant', errorMsg);
+            }
+        }
+
+        async function speak(text) {
+            try {
+                isSpeaking = true;
+                document.getElementById('speakingStatus').style.display = 'block';
+                
+                const url = `${API_URL}/tts?text=${encodeURIComponent(text)}&lang=${currentLanguage}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) throw new Error('TTS failed');
+                
+                const blob = await response.blob();
+                const audioUrl = URL.createObjectURL(blob);
+                
+                audioElement.src = audioUrl;
+                await audioElement.play();
+                
+                audioElement.onended = () => {
+                    isSpeaking = false;
+                    document.getElementById('speakingStatus').style.display = 'none';
+                };
+                
+            } catch (error) {
+                console.error('Speech error:', error);
+                isSpeaking = false;
+                document.getElementById('speakingStatus').style.display = 'none';
+            }
+        }
+
+        function addMessage(role, text) {
+            const container = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <div class="message-bubble">
+                    <div class="message-text">${text}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTyping() {
+            const container = document.getElementById('chatContainer');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message assistant';
+            typingDiv.id = 'typingIndicator';
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            container.appendChild(typingDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function hideTyping() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+
+        async function clearChat() {
+            try {
+                await fetch(`${API_URL}/chat/session/${SESSION_ID}`, {
+                    method: 'DELETE'
+                });
+            } catch (error) {
+                console.error('Clear session error:', error);
+            }
+            
+            document.getElementById('chatContainer').innerHTML = '';
+            addMessage('assistant', getGreeting());
+        }
+    </script>
+</body>
+</html>
