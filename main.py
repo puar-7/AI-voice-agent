@@ -5,7 +5,8 @@ from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.models.telephony import TwilioConfig
 from vocode.streaming.telephony.server.base import TelephonyServer
 from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig
-from groq import Groq ### <-- CHANGED ###
+from vocode.streaming.models.audio import AudioEncoding # <-- 1. NEW IMPORT
+from groq import Groq
 
 # --- 1. Initialize the FastAPI Server ---
 app = FastAPI()
@@ -23,33 +24,40 @@ You are a friendly, casual AI assistant. Your name is 'Arya'.
 TWILIO_ACCOUNT_SID = os.environ["TWILIO_ACCOUNT_SID"]
 TWILIO_AUTH_TOKEN = os.environ["TWILIO_AUTH_TOKEN"]
 YOUR_TWILIO_PHONE_NUMBER = os.environ["YOUR_TWILIO_PHONE_NUMBER"]
-GROQ_API_KEY = os.environ["GROQ_API_KEY"] ### <-- CHANGED ### (Make sure you set this secret in Render)
+GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 ELEVEN_LABS_API_KEY = os.environ["ELEVEN_LABS_API_KEY"]
 RENDER_EXTERNAL_URL = os.environ["RENDER_EXTERNAL_URL"]
 PORT = int(os.environ.get("PORT", 8000))
 
 # --- 4. Configure Your Voice Agent ---
+
+# We define startup_error globally to fix the NameError
+startup_error = None
+
 try:
-    # ### <-- CHANGED SECTION ###
     # Configure LLM (High-Performance with Groq)
     agent_config = AgentConfig(
         initial_message=BaseMessage(text=" "),
         prompt_preamble=AGENT_PROMPT,
-        model_name="llama3-70b-8192",  # <-- Use a Groq model
+        model_name="llama3-70b-8192",
         allow_agent_to_be_interrupted=True,
-        # Point Vocode to Groq's API instead of OpenAI's
         openai_api_key=GROQ_API_KEY,
-        openai_base_url="https://api.groq.com/openai/v1/", # <-- Tell it to use Groq's server
+        openai_base_url="https://api.groq.com/openai/v1/",
     )
-    # ### END CHANGED SECTION ###
 
+    # --- 2. THIS BLOCK IS CHANGED ---
     # Configure Voice (High-Realism)
+    # 'from_telephone_input_device' was removed from vocode.
+    # We now configure it manually for 8000Hz MULAW audio.
     ELEVEN_LABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM" # 'Rachel' voice
     
-    synthesizer_config = ElevenLabsSynthesizerConfig.from_telephone_input_device(
+    synthesizer_config = ElevenLabsSynthesizerConfig(
         api_key=ELEVEN_LABS_API_KEY,
         voice_id=ELEVEN_LABS_VOICE_ID,
+        sampling_rate=8000,
+        audio_encoding=AudioEncoding.MULAW
     )
+    # --- END OF CHANGED BLOCK ---
 
     # Configure Phone Number (Twilio)
     twilio_config = TwilioConfig(
@@ -70,12 +78,14 @@ try:
     # --- 6. Add the Server's Routes to FastAPI ---
     app.include_router(telephony_server.get_router())
 
-    @app.get("/")
-    def root():
-        return {"message": "AI Voice Agent is running!"}
-
 except Exception as e:
-    print(f"Error setting up configuration: {e}")
-    @app.get("/")
-    def error():
-        return {"error": f"Failed to initialize server: {e}"}
+    startup_error = e # Store the error
+    print(f"Error setting up configuration: {startup_error}")
+
+# --- 7. Health check endpoint (FIXED) ---
+# This will now correctly report errors
+@app.get("/")
+def root():
+    if startup_error:
+        return {"error": f"Failed to initialize server: {startup_error}"}
+    return {"message": "AI Voice Agent is running!"}
