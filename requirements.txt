@@ -3,3 +3,4 @@ fastapi
 uvicorn
 groq
 pydantic<2
+twilio
