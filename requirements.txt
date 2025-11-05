@@ -2,3 +2,4 @@ vocode
 fastapi
 uvicorn
 groq
+pydantic<2
