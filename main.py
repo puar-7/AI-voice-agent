@@ -1,7 +1,8 @@
 import os
-import requests
+import io
+import asyncio
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
 from vocode.streaming.models.agent import ChatGPTAgentConfig
 from vocode.streaming.models.message import BaseMessage
@@ -14,7 +15,9 @@ from vocode.streaming.models.synthesizer import (
     ElevenLabsSynthesizerConfig,
     AudioEncoding,
 )
-from groq import Groq  # present for parity with your original config; not directly used
+
+import edge_tts  # no API key needed
+# from groq import Groq  # optional; not used directly
 
 # --- 1) FastAPI app ---
 app = FastAPI()
@@ -33,7 +36,7 @@ TWILIO_ACCOUNT_SID = os.environ["TWILIO_ACCOUNT_SID"]
 TWILIO_AUTH_TOKEN = os.environ["TWILIO_AUTH_TOKEN"]
 YOUR_TWILIO_PHONE_NUMBER = os.environ["YOUR_TWILIO_PHONE_NUMBER"]
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]
-ELEVEN_LABS_API_KEY = os.environ["ELEVEN_LABS_API_KEY"]
+ELEVEN_LABS_API_KEY = os.environ.get("ELEVEN_LABS_API_KEY", "")  # optional for PSTN path
 RENDER_EXTERNAL_URL = os.environ["RENDER_EXTERNAL_URL"]  # e.g., https://<service>.onrender.com
 
 # --- 4) Configure LLM + TTS (for Twilio PSTN) and mount Telephony routes ---
@@ -87,12 +90,12 @@ def root():
         return {"error": f"Startup failed: {startup_error}"}
     return {"message": "AI Voice Agent is running!"}
 
-# --- 6) Minimal HTML page to hear the ElevenLabs voice in Chrome (no phone needed) ---
+# --- 6) Minimal HTML page to hear the voice in Chrome (no phone needed) ---
 TEST_HTML = """<!doctype html>
 <html>
   <head><meta charset="utf-8"><title>Voice Test</title></head>
   <body style="font-family: system-ui; padding: 24px; max-width: 780px;">
-    <h2>AI Voice Test (ElevenLabs)</h2>
+    <h2>AI Voice Test (Browser TTS)</h2>
     <p>Type text and click <b>Speak</b> to hear the voice.</p>
     <input id="t" size="70" value="Hey! Main Arya bol rahi hoon. How can I help?" />
     <button onclick="speak()">Speak</button>
@@ -128,48 +131,25 @@ def test_page():
         return HTMLResponse(f"<pre>Startup failed: {startup_error}</pre>", status_code=500)
     return HTMLResponse(TEST_HTML)
 
-# --- 7) Streaming ElevenLabs TTS endpoint with clear error surfacing ---
+# --- 7) Browser TTS using edge-tts (no API key) ---
+# Choose a voice. Good options:
+#   "en-US-AriaNeural" (English, natural)
+#   "hi-IN-SwaraNeural" (Hindi)
+EDGE_TTS_VOICE = os.environ.get("EDGE_TTS_VOICE", "en-US-AriaNeural")
+
+async def synth_edge_tts(text: str) -> bytes:
+    communicate = edge_tts.Communicate(text, voice=EDGE_TTS_VOICE)
+    buf = io.BytesIO()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buf.write(chunk["data"])
+    buf.seek(0)
+    return buf.read()
+
 @app.get("/tts")
-def tts(text: str = Query("Hello! This is Arya speaking.")):
-    """
-    Returns MP3 audio streamed from ElevenLabs.
-    - Uses the /stream endpoint (more compatible across plans).
-    - Bubbles up exact ElevenLabs errors to the client for quick diagnosis.
-    """
-    voice_id = "21m00Tcm4TlvDq8ikWAM"  # Change to a voice that exists in your ElevenLabs account if needed
+async def tts(text: str = Query("Hello! This is Arya speaking.")):
     try:
-        if not ELEVEN_LABS_API_KEY:
-            raise HTTPException(status_code=500, detail="ELEVEN_LABS_API_KEY missing")
-
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
-        params = {
-            "optimize_streaming_latency": 0,
-            "output_format": "mp3_22050_32",  # Browser-friendly
-        }
-        headers = {
-            "xi-api-key": ELEVEN_LABS_API_KEY,
-            "accept": "audio/mpeg",
-            "content-type": "application/json",
-        }
-        payload = {
-            "text": text,
-            # omit model_id for maximum compatibility across accounts/plans
-            "voice_settings": {"stability": 0.5, "similarity_boost": 0.7},
-        }
-
-        r = requests.post(
-            url, headers=headers, params=params, json=payload, stream=True, timeout=60
-        )
-        if r.status_code >= 400:
-            # Return the exact upstream error text to the browser
-            err_text = r.text
-            raise HTTPException(
-                status_code=r.status_code, detail=f"ElevenLabs error: {err_text}"
-            )
-
-        return StreamingResponse(r.iter_content(chunk_size=4096), media_type="audio/mpeg")
-
-    except HTTPException:
-        raise
+        audio_bytes = await synth_edge_tts(text)
+        return StreamingResponse(iter([audio_bytes]), media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"TTS error: {e}")
