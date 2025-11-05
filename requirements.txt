@@ -5,3 +5,4 @@ pydantic
 twilio
 vonage
 vocode[all]
+requests
