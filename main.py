@@ -8,9 +8,9 @@ from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig
 from vocode.streaming.models.audio import AudioEncoding
 from groq import Groq
 
-# --- 1. IMPORT CHANGED ---
-# The correct class is TelephonyConfig
-from vocode.streaming.telephony.config import TelephonyConfig
+# --- 1. IMPORT CHANGED (THE FIX) ---
+# The correct class is in vocode.streaming.models.telephony
+from vocode.streaming.models.telephony import TelephonyConfig
 
 # --- 2. Initialize the FastAPI Server ---
 app = FastAPI()
@@ -64,9 +64,8 @@ try:
         phone_number=YOUR_TWILIO_PHONE_NUMBER
     )
 
-    # --- 6. CLASS NAME CHANGED ---
-    # Bundle all settings into the TelephonyConfig
-    server_config = TelephonyConfig(  # <-- This line was changed
+    # --- 6. Bundle all settings into the TelephonyConfig ---
+    server_config = TelephonyConfig(
         base_url=RENDER_EXTERNAL_URL,
         agent_config=agent_config,
         synthesizer_config=synthesizer_config,
