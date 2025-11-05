@@ -1,7 +1,7 @@
-vocode
 fastapi
 uvicorn
 groq
-pydantic<2
+pydantic
 twilio
 vonage
+vocode[all]
