@@ -7,11 +7,12 @@ WORKDIR /app
 # Install system dependencies
 # - apt-get update: Refreshes package lists
 # - libportaudio2: The audio library needed by 'sounddevice'
+# - ffmpeg: The audio tool needed by 'pydub'
 # - -y: Auto-confirms the installation
 # - --no-install-recommends: Installs only essential packages
 # - rm -rf /var/lib/apt/lists/*: Cleans up to keep the image small
 RUN apt-get update && \
-    apt-get install -y libportaudio2 --no-install-recommends && \
+    apt-get install -y libportaudio2 ffmpeg --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file first to leverage Docker cache
