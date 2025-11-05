@@ -9,7 +9,6 @@ RUN apt-get update && \
     apt-get install -y \
     libportaudio2 \
     ffmpeg \
-    curl \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
@@ -19,15 +18,11 @@ COPY requirements.txt .
 # Install Python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Verify edge-tts is installed and accessible
-RUN edge-tts --version || echo "edge-tts CLI not found in PATH"
-
 # Copy the rest of your application code
 COPY . .
 
-# Set environment variables for edge-tts
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV USE_CLI_METHOD=true
 
 # Expose port (optional, for documentation)
 EXPOSE 8000
