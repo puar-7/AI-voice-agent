@@ -69,7 +69,6 @@ try:
                 twilio_config=twilio_config,
             )
         ],
-        logger=None,
     )
 
     # --- 6. Add the Server's Routes to FastAPI ---
