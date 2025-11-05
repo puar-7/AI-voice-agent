@@ -86,7 +86,7 @@ try:
         agent_config = ChatGPTAgentConfig(
             initial_message=BaseMessage(text=" "),
             prompt_preamble=AGENT_PROMPT,
-            model_name="llama3-70b-8192",
+            model_name="llama-3.3-70b-versatile",  # Updated model
             allow_agent_to_be_interrupted=True,
             openai_api_key=GROQ_API_KEY,
             openai_api_base="https://api.groq.com/openai/v1",
@@ -183,10 +183,10 @@ async def chat(data: ChatMessage):
         
         print(f"🔄 Calling Groq API with {len(messages)} messages...")
         
-        # Call Groq API
+        # Call Groq API with updated model
         chat_completion = groq_client.chat.completions.create(
             messages=messages,
-            model="llama-3.1-70b-versatile",
+            model="llama-3.3-70b-versatile",  # Updated to latest model
             temperature=0.7,
             max_tokens=150,
             top_p=0.9,
@@ -434,7 +434,7 @@ async def test_groq():
         
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": "Say hello in one word"}],
-            model="llama-3.1-70b-versatile",
+            model="llama-3.3-70b-versatile",  # Updated model
             max_tokens=10
         )
         
