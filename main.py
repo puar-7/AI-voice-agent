@@ -8,9 +8,9 @@ from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig
 from vocode.streaming.models.audio import AudioEncoding
 from groq import Groq
 
-# --- 1. NEW IMPORT ---
-# We need this new config object for the TelephonyServer
-from vocode.streaming.telephony.config import TelephonyServerConfig
+# --- 1. IMPORT CHANGED ---
+# The correct class is TelephonyConfig
+from vocode.streaming.telephony.config import TelephonyConfig
 
 # --- 2. Initialize the FastAPI Server ---
 app = FastAPI()
@@ -44,7 +44,7 @@ try:
         model_name="llama3-70b-8192",
         allow_agent_to_be_interrupted=True,
         openai_api_key=GROQ_API_KEY,
-        openai_base_url="https://api.groq.com/openai/v1/",
+        openai_base_url="https.api.groq.com/openai/v1/",
     )
 
     # Configure Voice (High-Realism)
@@ -64,9 +64,9 @@ try:
         phone_number=YOUR_TWILIO_PHONE_NUMBER
     )
 
-    # --- 6. THIS BLOCK IS CHANGED (THE FIX) ---
-    # Bundle all settings into the TelephonyServerConfig
-    server_config = TelephonyServerConfig(
+    # --- 6. CLASS NAME CHANGED ---
+    # Bundle all settings into the TelephonyConfig
+    server_config = TelephonyConfig(  # <-- This line was changed
         base_url=RENDER_EXTERNAL_URL,
         agent_config=agent_config,
         synthesizer_config=synthesizer_config,
@@ -76,7 +76,6 @@ try:
 
     # Create the server by passing the single config object
     telephony_server = TelephonyServer(config=server_config)
-    # --- END OF CHANGED BLOCK ---
 
     # --- 7. Add the Server's Routes to FastAPI ---
     app.include_router(telephony_server.get_router())
