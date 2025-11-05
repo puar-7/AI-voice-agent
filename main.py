@@ -5,13 +5,12 @@ from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.models.telephony import TwilioConfig
 from vocode.streaming.telephony.server import TelephonyServer
 from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig
+from groq import Groq ### <-- CHANGED ###
 
 # --- 1. Initialize the FastAPI Server ---
-# This is the high-performance web framework
 app = FastAPI()
 
 # --- 2. Define Your Agent's Prompt (The "Brain") ---
-# This is where you score on Context (20%) and Creativity (20%)
 AGENT_PROMPT = """
 You are a friendly, casual AI assistant. Your name is 'Arya'.
 - **Rule 1:** Start the conversation with a casual greeting in Hindi or English. Examples: "Hey, what's up?" or "Namaste, kaise ho?". Pick one and only one.
@@ -21,30 +20,31 @@ You are a friendly, casual AI assistant. Your name is 'Arya'.
 """
 
 # --- 3. Load All Your API Keys (Secrets) ---
-# Render will provide these from the 'Environment' tab
 TWILIO_ACCOUNT_SID = os.environ["TWILIO_ACCOUNT_SID"]
 TWILIO_AUTH_TOKEN = os.environ["TWILIO_AUTH_TOKEN"]
-YOUR_TWILIO_PHONE_NUMBER = os.environ["YOUR_TWILIO_PHONE_NUMBER"] # Your Twilio number
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+YOUR_TWILIO_PHONE_NUMBER = os.environ["YOUR_TWILIO_PHONE_NUMBER"]
+GROQ_API_KEY = os.environ["GROQ_API_KEY"] ### <-- CHANGED ### (Make sure you set this secret in Render)
 ELEVEN_LABS_API_KEY = os.environ["ELEVEN_LABS_API_KEY"]
-RENDER_EXTERNAL_URL = os.environ["RENDER_EXTERNAL_URL"] # Render sets this automatically!
-PORT = int(os.environ.get("PORT", 8000)) # Render sets this automatically
+RENDER_EXTERNAL_URL = os.environ["RENDER_EXTERNAL_URL"]
+PORT = int(os.environ.get("PORT", 8000))
 
 # --- 4. Configure Your Voice Agent ---
 try:
-    # Configure LLM (High-Performance)
+    # ### <-- CHANGED SECTION ###
+    # Configure LLM (High-Performance with Groq)
     agent_config = AgentConfig(
-        initial_message=BaseMessage(text=" "), # The prompt will trigger the *real* first message
+        initial_message=BaseMessage(text=" "),
         prompt_preamble=AGENT_PROMPT,
-        model_name="gpt-4o-mini",
-        allow_agent_to_be_interrupted=True, # Critical for realism!
-        openai_api_key=OPENAI_API_KEY
+        model_name="llama3-70b-8192",  # <-- Use a Groq model
+        allow_agent_to_be_interrupted=True,
+        # Point Vocode to Groq's API instead of OpenAI's
+        openai_api_key=GROQ_API_KEY,
+        openai_base_url="https://api.groq.com/openai/v1/", # <-- Tell it to use Groq's server
     )
+    # ### END CHANGED SECTION ###
 
     # Configure Voice (High-Realism)
-    # NOTE: You MUST change this Voice ID to one from your ElevenLabs account.
-    # This ID (21m00Tcm4TlvDq8ikWAM) is for the 'Rachel' voice.
-    ELEVEN_LABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM" 
+    ELEVEN_LABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM" # 'Rachel' voice
     
     synthesizer_config = ElevenLabsSynthesizerConfig.from_telephone_input_device(
         api_key=ELEVEN_LABS_API_KEY,
@@ -68,17 +68,14 @@ try:
     )
 
     # --- 6. Add the Server's Routes to FastAPI ---
-    # This connects Vocode to your FastAPI app
     app.include_router(telephony_server.get_router())
 
-    # Health check endpoint
     @app.get("/")
     def root():
         return {"message": "AI Voice Agent is running!"}
 
 except Exception as e:
     print(f"Error setting up configuration: {e}")
-    # Add a fallback route to report error on startup
     @app.get("/")
     def error():
         return {"error": f"Failed to initialize server: {e}"}
