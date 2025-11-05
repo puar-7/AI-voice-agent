@@ -5,7 +5,7 @@ from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.models.telephony import TwilioConfig
 from vocode.streaming.telephony.server.base import TelephonyServer
 from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig
-from vocode.streaming.models.audio import AudioEncoding
+from vocode.streaming.models.audio_encoding import AudioEncoding
 from groq import Groq
 
 # --- 1. IMPORT CHANGED (THE FIX) ---
