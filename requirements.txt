@@ -6,3 +6,4 @@ twilio
 vonage
 vocode[all]
 requests
+edge-tts
