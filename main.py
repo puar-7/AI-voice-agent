@@ -55,10 +55,16 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 ELEVEN_LABS_API_KEY = os.environ.get("ELEVEN_LABS_API_KEY", "")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:8000")
 
-# Initialize Groq client
+# Initialize Groq client - CRITICAL: Do this BEFORE Twilio setup
 groq_client = None
-if GROQ_API_KEY:
-    groq_client = Groq(api_key=GROQ_API_KEY)
+try:
+    if GROQ_API_KEY:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        print("✅ Groq client initialized successfully")
+    else:
+        print("⚠️ GROQ_API_KEY not found!")
+except Exception as e:
+    print(f"❌ Failed to initialize Groq: {e}")
 
 # --- 4) Session storage for conversation history ---
 conversation_sessions: Dict[str, List[Dict]] = {}
@@ -148,7 +154,10 @@ async def chat(data: ChatMessage):
     """
     try:
         if not groq_client:
-            raise HTTPException(status_code=500, detail="Groq API not configured")
+            print("❌ ERROR: Groq client is None!")
+            print(f"   GROQ_API_KEY exists: {bool(GROQ_API_KEY)}")
+            print(f"   GROQ_API_KEY length: {len(GROQ_API_KEY) if GROQ_API_KEY else 0}")
+            raise HTTPException(status_code=500, detail="Groq API not configured - check logs")
         
         # Get or create session history
         if data.session_id not in conversation_sessions:
@@ -172,16 +181,20 @@ async def chat(data: ChatMessage):
             {"role": "system", "content": AGENT_PROMPT}
         ] + session_history
         
+        print(f"🔄 Calling Groq API with {len(messages)} messages...")
+        
         # Call Groq API
         chat_completion = groq_client.chat.completions.create(
             messages=messages,
-            model="llama-3.1-70b-versatile",  # or "llama3-70b-8192"
+            model="llama-3.1-70b-versatile",
             temperature=0.7,
             max_tokens=150,
             top_p=0.9,
         )
         
         response_text = chat_completion.choices[0].message.content.strip()
+        
+        print(f"✅ Got response: {response_text[:50]}...")
         
         # Add assistant response to history
         session_history.append({
@@ -194,8 +207,16 @@ async def chat(data: ChatMessage):
             timestamp=datetime.now().isoformat()
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Chat error: {e}")
+        print(f"❌ CHAT ERROR DETAILS:")
+        print(f"   Error Type: {type(e).__name__}")
+        print(f"   Error Message: {str(e)}")
+        print(f"   Groq Client Status: {groq_client is not None}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
+        
         # Fallback response
         fallback_responses = {
             "en": "I'm having trouble processing that. Could you rephrase?",
@@ -212,16 +233,6 @@ async def clear_session(session_id: str):
     if session_id in conversation_sessions:
         del conversation_sessions[session_id]
     return {"message": "Session cleared"}
-
-# Add this endpoint to your main.py
-@app.get("/demo", response_class=HTMLResponse)
-def demo_page():
-    """Serve the full demo page"""
-    try:
-        with open("demo.html", "r", encoding="utf-8") as f:
-            return HTMLResponse(f.read())
-    except FileNotFoundError:
-        return HTMLResponse("<h1>demo.html not found</h1>", status_code=404)
 
 # --- 9) Enhanced demo page with React component ---
 @app.get("/demo", response_class=HTMLResponse)
