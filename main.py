@@ -237,12 +237,21 @@ async def clear_session(session_id: str):
 # --- 9) Enhanced demo page with React component ---
 @app.get("/demo", response_class=HTMLResponse)
 def demo_page():
-    """Serve the enhanced React demo."""
+    """Serve the full interactive demo."""
     if startup_error:
         return HTMLResponse(f"<pre>Startup failed: {startup_error}</pre>", status_code=500)
     
-    # You would serve the React component here
-    # For now, redirect to the test page or serve a static HTML
+    # Try to load demo.html if it exists
+    try:
+        import os
+        demo_path = os.path.join(os.path.dirname(__file__), "demo.html")
+        if os.path.exists(demo_path):
+            with open(demo_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(f.read())
+    except Exception as e:
+        print(f"Could not load demo.html: {e}")
+    
+    # Fallback: Return simple demo page with instructions
     return HTMLResponse("""
 <!DOCTYPE html>
 <html>
@@ -250,21 +259,43 @@ def demo_page():
     <title>Arya Voice Demo</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: system-ui; max-width: 800px; margin: 40px auto; padding: 20px; }
+        h1 { color: #667eea; }
+        .info { background: #f0f0f0; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        pre { background: #2d2d2d; color: #f8f8f8; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #667eea; text-decoration: none; font-weight: bold; }
+        a:hover { text-decoration: underline; }
+    </style>
 </head>
 <body>
     <h1>🎙️ Arya Voice Agent Demo</h1>
-    <p>The enhanced demo UI is available as a React component.</p>
-    <p>Use the <code>/chat</code> endpoint to interact with the AI:</p>
-    <pre>
-POST /chat
-{
-  "message": "Hello Arya!",
-  "language": "en",
-  "session_id": "user123"
-}
-    </pre>
-    <p><a href="/test">Go to simple test page</a></p>
-    <p><a href="/docs">View API documentation</a></p>
+    
+    <div class="info">
+        <h2>⚠️ Demo UI File Missing</h2>
+        <p>The <code>demo.html</code> file is not deployed. You have two options:</p>
+        <ol>
+            <li><strong>Use the simple test page:</strong> <a href="/test">Go to /test</a></li>
+            <li><strong>Deploy demo.html:</strong> Add it to your git repo and push</li>
+        </ol>
+    </div>
+    
+    <h2>API Testing</h2>
+    <p>You can test the chat API directly using curl or Postman:</p>
+    <pre>curl -X POST https://ai-voice-agent-2dri.onrender.com/chat \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "message": "Hello Arya!",
+    "language": "en",
+    "session_id": "test123"
+  }'</pre>
+    
+    <h2>Quick Links</h2>
+    <ul>
+        <li><a href="/test">Simple TTS Test Page</a></li>
+        <li><a href="/docs">API Documentation</a></li>
+        <li><a href="/info">System Info</a></li>
+    </ul>
 </body>
 </html>
     """)
@@ -384,9 +415,41 @@ async def info():
             "chat": "/chat",
             "tts": "/tts",
             "demo": "/demo",
-            "test": "/test"
+            "test": "/test",
+            "test_groq": "/test-groq"
         }
     }
+
+@app.get("/test-groq")
+async def test_groq():
+    """Simple test to verify Groq API works"""
+    try:
+        if not groq_client:
+            return {
+                "success": False,
+                "error": "Groq client not initialized",
+                "key_set": bool(GROQ_API_KEY),
+                "key_length": len(GROQ_API_KEY) if GROQ_API_KEY else 0
+            }
+        
+        response = groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": "Say hello in one word"}],
+            model="llama-3.1-70b-versatile",
+            max_tokens=10
+        )
+        
+        return {
+            "success": True,
+            "response": response.choices[0].message.content,
+            "model": "llama-3.1-70b-versatile",
+            "message": "✅ Groq API is working!"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
 
 if __name__ == "__main__":
     import uvicorn
