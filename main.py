@@ -1,6 +1,8 @@
 import os
 import io
 import asyncio
+import subprocess
+import tempfile
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
@@ -21,7 +23,7 @@ import edge_tts
 # --- 1) FastAPI app ---
 app = FastAPI()
 
-# --- 2) Agent prompt (as in your original) ---
+# --- 2) Agent prompt ---
 AGENT_PROMPT = """
 You are a friendly, casual AI assistant. Your name is 'Arya'.
 - Start conversation casually in Hindi or English.
@@ -30,7 +32,7 @@ You are a friendly, casual AI assistant. Your name is 'Arya'.
 - If asked about construction project, say: "The foundation work is complete, and we're on schedule to start framing next week."
 """
 
-# --- 3) Environment variables (same names you already use) ---
+# --- 3) Environment variables ---
 TWILIO_ACCOUNT_SID = os.environ["TWILIO_ACCOUNT_SID"]
 TWILIO_AUTH_TOKEN = os.environ["TWILIO_AUTH_TOKEN"]
 YOUR_TWILIO_PHONE_NUMBER = os.environ["YOUR_TWILIO_PHONE_NUMBER"]
@@ -38,7 +40,7 @@ GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 ELEVEN_LABS_API_KEY = os.environ.get("ELEVEN_LABS_API_KEY", "")
 RENDER_EXTERNAL_URL = os.environ["RENDER_EXTERNAL_URL"]
 
-# --- 4) Configure LLM + TTS (for Twilio PSTN) and mount Telephony routes ---
+# --- 4) Configure LLM + TTS for Twilio ---
 startup_error = None
 try:
     agent_config = ChatGPTAgentConfig(
@@ -50,7 +52,7 @@ try:
         openai_api_base="https://api.groq.com/openai/v1",
     )
 
-    ELEVEN_LABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+    ELEVEN_LABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
     synthesizer_config = ElevenLabsSynthesizerConfig(
         api_key=ELEVEN_LABS_API_KEY,
         voice_id=ELEVEN_LABS_VOICE_ID,
@@ -88,7 +90,7 @@ def root():
         return {"error": f"Startup failed: {startup_error}"}
     return {"message": "AI Voice Agent is running!"}
 
-# --- 6) Minimal HTML page to hear the voice in Chrome ---
+# --- 6) HTML test page ---
 TEST_HTML = """<!doctype html>
 <html>
   <head><meta charset="utf-8"><title>Voice Test</title></head>
@@ -129,68 +131,117 @@ def test_page():
         return HTMLResponse(f"<pre>Startup failed: {startup_error}</pre>", status_code=500)
     return HTMLResponse(TEST_HTML)
 
-# --- 7) Browser TTS using edge-tts with better error handling ---
-# Use a reliable English voice by default
+# --- 7) TTS with fallback strategy ---
 EDGE_TTS_VOICE = os.environ.get("EDGE_TTS_VOICE", "en-US-JennyNeural")
+USE_CLI_METHOD = os.environ.get("USE_CLI_METHOD", "true").lower() == "true"
 
-async def synth_edge_tts(text: str) -> bytes:
+async def synth_edge_tts_cli(text: str) -> bytes:
     """
-    Synthesize speech using edge-tts.
-    Returns audio bytes in MP3 format.
+    Use edge-tts CLI tool via subprocess.
+    This sometimes works better on restricted networks.
     """
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        output_file = tmp.name
+    
     try:
-        # Validate text input
-        if not text or not text.strip():
-            raise ValueError("Text cannot be empty")
-        
-        # Create communicator with explicit rate and pitch
-        communicate = edge_tts.Communicate(
-            text=text.strip(),
-            voice=EDGE_TTS_VOICE,
-            rate="+0%",
-            pitch="+0Hz"
+        # Run edge-tts as a subprocess
+        process = await asyncio.create_subprocess_exec(
+            "edge-tts",
+            "--text", text,
+            "--voice", EDGE_TTS_VOICE,
+            "--write-media", output_file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
         
-        buf = io.BytesIO()
-        audio_received = False
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
         
-        # Stream audio chunks
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                buf.write(chunk["data"])
-                audio_received = True
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "Unknown error"
+            raise RuntimeError(f"edge-tts CLI failed: {error_msg}")
         
-        if not audio_received:
-            raise RuntimeError(f"No audio received from edge-tts for voice: {EDGE_TTS_VOICE}")
-        
-        buf.seek(0)
-        audio_data = buf.read()
+        # Read the generated file
+        with open(output_file, "rb") as f:
+            audio_data = f.read()
         
         if len(audio_data) == 0:
-            raise RuntimeError("Audio data is empty")
+            raise RuntimeError("Generated audio file is empty")
         
         return audio_data
         
-    except Exception as e:
-        print(f"edge-tts error: {e}")
-        raise
+    finally:
+        # Clean up temp file
+        try:
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+        except:
+            pass
+
+async def synth_edge_tts_library(text: str) -> bytes:
+    """
+    Use edge-tts Python library (original method).
+    """
+    communicate = edge_tts.Communicate(
+        text=text.strip(),
+        voice=EDGE_TTS_VOICE,
+        rate="+0%",
+        pitch="+0Hz"
+    )
+    
+    buf = io.BytesIO()
+    audio_received = False
+    
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buf.write(chunk["data"])
+            audio_received = True
+    
+    if not audio_received:
+        raise RuntimeError(f"No audio received from edge-tts")
+    
+    buf.seek(0)
+    return buf.read()
 
 @app.get("/tts")
 async def tts(text: str = Query("Hello! This is Arya speaking.")):
     """
-    Text-to-speech endpoint using edge-tts.
-    Returns MP3 audio stream.
+    Text-to-speech with multiple fallback methods.
     """
     try:
-        # Validate and clean input
         if not text or len(text.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text parameter is required")
         
         if len(text) > 5000:
             raise HTTPException(status_code=400, detail="Text too long (max 5000 characters)")
         
-        # Generate audio
-        audio_bytes = await synth_edge_tts(text)
+        audio_bytes = None
+        errors = []
+        
+        # Try CLI method first if enabled
+        if USE_CLI_METHOD:
+            try:
+                print("Trying edge-tts CLI method...")
+                audio_bytes = await synth_edge_tts_cli(text)
+                print("CLI method succeeded!")
+            except Exception as e:
+                errors.append(f"CLI method failed: {e}")
+                print(errors[-1])
+        
+        # Fallback to library method
+        if audio_bytes is None:
+            try:
+                print("Trying edge-tts library method...")
+                audio_bytes = await synth_edge_tts_library(text)
+                print("Library method succeeded!")
+            except Exception as e:
+                errors.append(f"Library method failed: {e}")
+                print(errors[-1])
+        
+        if audio_bytes is None or len(audio_bytes) == 0:
+            raise HTTPException(
+                status_code=500,
+                detail=f"All TTS methods failed. Errors: {'; '.join(errors)}"
+            )
         
         return StreamingResponse(
             io.BytesIO(audio_bytes),
@@ -201,32 +252,62 @@ async def tts(text: str = Query("Hello! This is Arya speaking.")):
             }
         )
         
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"TTS endpoint error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"TTS error: {str(e)}. Voice: {EDGE_TTS_VOICE}. Check server logs for details."
+            detail=f"TTS error: {str(e)}"
         )
 
-# --- 8) List available voices (helpful for debugging) ---
+@app.get("/tts-test")
+async def tts_test():
+    """
+    Diagnostics endpoint to test TTS configuration.
+    """
+    results = {
+        "voice": EDGE_TTS_VOICE,
+        "use_cli_method": USE_CLI_METHOD,
+        "tests": {}
+    }
+    
+    test_text = "Hello, this is a test."
+    
+    # Test CLI method
+    if USE_CLI_METHOD:
+        try:
+            await synth_edge_tts_cli(test_text)
+            results["tests"]["cli_method"] = "✓ Success"
+        except Exception as e:
+            results["tests"]["cli_method"] = f"✗ Failed: {str(e)}"
+    
+    # Test library method
+    try:
+        await synth_edge_tts_library(test_text)
+        results["tests"]["library_method"] = "✓ Success"
+    except Exception as e:
+        results["tests"]["library_method"] = f"✗ Failed: {str(e)}"
+    
+    return results
+
 @app.get("/voices")
 async def list_voices():
-    """List all available edge-tts voices."""
+    """List available voices."""
     try:
         voices = await edge_tts.list_voices()
         return {
             "current_voice": EDGE_TTS_VOICE,
             "total_voices": len(voices),
-            "voices": [
-                {
-                    "name": v["ShortName"],
-                    "gender": v["Gender"],
-                    "locale": v["Locale"]
-                }
-                for v in voices[:50]  # Show first 50
-            ]
+            "recommended_voices": {
+                "english_female": ["en-US-JennyNeural", "en-US-AriaNeural"],
+                "english_male": ["en-US-GuyNeural", "en-US-ChristopherNeural"],
+                "hindi_female": ["hi-IN-SwaraNeural"],
+                "hindi_male": ["hi-IN-MadhurNeural"]
+            }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list voices: {e}")
+        return {
+            "error": f"Failed to list voices: {e}",
+            "current_voice": EDGE_TTS_VOICE
+        }
