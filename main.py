@@ -4,12 +4,10 @@ from vocode.streaming.models.agent import AgentConfig
 from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.models.telephony import TwilioConfig
 from vocode.streaming.telephony.server.base import TelephonyServer
-from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig
-from vocode.streaming.models.audio_encoding import AudioEncoding
+from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig, AudioEncoding  # FIXED
 from groq import Groq
 
 # --- 1. IMPORT CHANGED (THE FIX) ---
-# The correct class is in vocode.streaming.models.telephony
 from vocode.streaming.models.telephony import TelephonyConfig
 
 # --- 2. Initialize the FastAPI Server ---
