@@ -213,6 +213,16 @@ async def clear_session(session_id: str):
         del conversation_sessions[session_id]
     return {"message": "Session cleared"}
 
+# Add this endpoint to your main.py
+@app.get("/demo", response_class=HTMLResponse)
+def demo_page():
+    """Serve the full demo page"""
+    try:
+        with open("demo.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    except FileNotFoundError:
+        return HTMLResponse("<h1>demo.html not found</h1>", status_code=404)
+
 # --- 9) Enhanced demo page with React component ---
 @app.get("/demo", response_class=HTMLResponse)
 def demo_page():
