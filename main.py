@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from vocode.streaming.models.agent import AgentConfig
 from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.models.telephony import TwilioConfig
-from vocode.streaming.telephony.server import TelephonyServer
+from vocode.streaming.telephony.server.base import TelephonyServer
 from vocode.streaming.models.synthesizer import ElevenLabsSynthesizerConfig
 from groq import Groq ### <-- CHANGED ###
 
